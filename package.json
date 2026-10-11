@@ -5,7 +5,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "bot": "tsx --env-file=.env src/bot.ts"
   },
   "keywords": [],
   "author": "",
