@@ -1,5 +1,5 @@
 // The Discord bot: asks which days I want alerts, sends briefings on those days,
-// and answers /briefing, /choose, /week and /help from my phone.
+// and answers /briefing, /choose, /week, /status and /help from my phone.
 // Run it with: npm run bot
 import {
   ActionRowBuilder,
@@ -42,10 +42,44 @@ function helpMessage() {
     "/briefing — trains + alerts now",
     ...choices.map((c) => `/choose — ${c.at}: ${c.usual.first.lines[0]} → ${c.usual.then.lines[0]} or ${c.backup.lines[0]}?`),
     "/week — pick your alert days",
+    "/status — is the bot OK?",
     "",
     "⏰ **Automatic**",
     `${WEEKLY_QUESTION.weekday} ${ampm(WEEKLY_QUESTION.time)} — pick your days`,
     ...trips.map((trip) => `${ampm(trip.sendAt)} — ${trip.title.toLowerCase()}`),
+  ].join("\n");
+}
+
+// What /status reports. shortcut: kept in memory, so a restart clears it; fine for one bot.
+const startedAt = new Date();
+let lastSent: { what: string; at: Date } | null = null;
+let lastProblem: { what: string; at: Date } | null = null;
+
+/** e.g. "Tue 6:30 PM" in New York time */
+const nyClock = (date: Date) =>
+  new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "2-digit" }).format(date);
+
+/** e.g. "2 hr", "3 days" */
+function howLong(ms: number) {
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 24 * 60) return `${Math.floor(minutes / 60)} hr`;
+  return `${Math.floor(minutes / (24 * 60))} days`;
+}
+
+/** The /status message. */
+function statusMessage() {
+  const now = nyTime(new Date());
+  const plan = loadWeek();
+  // Picks count from the Sunday they were made through the next Sunday.
+  const daysSincePick = plan ? (Date.parse(now.date) - Date.parse(plan.weekOf)) / (24 * 60 * 60 * 1000) : -1;
+  const alertDays = plan && daysSincePick >= 0 && daysSincePick <= 7 ? plan.days.join(", ") || "none" : "not picked yet";
+  return [
+    "🟢 **Commute Bot is online**",
+    `Up since: ${nyClock(startedAt)} (${howLong(Date.now() - startedAt.getTime())})`,
+    `Alert days this week: ${alertDays}`,
+    `Last sent: ${lastSent ? `${lastSent.what} · ${nyClock(lastSent.at)}` : "nothing yet"}`,
+    `Last problem: ${lastProblem ? `${lastProblem.what} · ${nyClock(lastProblem.at)}` : "none"}`,
   ].join("\n");
 }
 
@@ -94,6 +128,7 @@ client.once(Events.ClientReady, async () => {
       ],
     },
     { name: "week", description: "Pick which days you want alerts this week" },
+    { name: "status", description: "Is the bot running? What did it last send?" },
     { name: "help", description: "List the commands and when automatic messages come" },
   ]);
   console.log(`Commute Bot is online in #${channel.name}`);
@@ -110,8 +145,10 @@ client.once(Events.ClientReady, async () => {
       try {
         if (item === "week-question") await channel.send(weekQuestion());
         else await channel.send(fit(await briefingMessage(findTrip(item))));
+        lastSent = { what: item === "week-question" ? "weekly question" : findTrip(item).title.toLowerCase(), at: new Date() };
       } catch (error) {
         console.error(`Couldn't send ${item}:`, error);
+        lastProblem = { what: `Couldn't send ${item}: ${error instanceof Error ? error.message : error}`, at: new Date() };
       }
     }
   }, 20_000);
@@ -135,6 +172,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await interaction.reply(weekQuestion());
       return;
     }
+    if (interaction.commandName === "status") {
+      await interaction.reply(statusMessage());
+      return;
+    }
     if (interaction.commandName === "help") {
       await interaction.reply(helpMessage());
       return;
@@ -147,6 +188,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await interaction.editReply(fit(message));
   } catch (error) {
     console.error(error);
+    lastProblem = { what: error instanceof Error ? error.message : String(error), at: new Date() };
     const text = `Something went wrong: ${error instanceof Error ? error.message : error}`;
     if (interaction.isRepliable()) {
       if (interaction.deferred || interaction.replied) await interaction.editReply(text);
