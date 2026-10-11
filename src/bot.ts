@@ -1,6 +1,6 @@
 // The Discord bot: asks which days I want alerts, sends briefings on those days,
-// and answers /briefing, /choose and /week from my phone.
-// Run it with: npx tsx --env-file=.env src/bot.ts
+// and answers /briefing, /choose, /week and /help from my phone.
+// Run it with: npm run bot
 import {
   ActionRowBuilder,
   ApplicationCommandOptionType,
@@ -27,6 +27,27 @@ const findTrip = (id: string): Trip => trips.find((trip) => trip.id === id) ?? t
 
 // Discord messages can't be longer than 2,000 characters.
 const fit = (text: string) => (text.length > 2000 ? text.slice(0, 1997) + "…" : text);
+
+/** "18:30" → "6:30 PM" */
+function ampm(time: string) {
+  const [hour, minute] = time.split(":").map(Number);
+  return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour < 12 ? "AM" : "PM"}`;
+}
+
+/** The /help message, built from trips.json so it stays up to date. */
+function helpMessage() {
+  const choices = trips.flatMap((trip) => (trip.choice ? [trip.choice] : []));
+  return [
+    "🚇 **Commands**",
+    "/briefing — trains + alerts now",
+    ...choices.map((c) => `/choose — ${c.at}: ${c.usual.first.lines[0]} → ${c.usual.then.lines[0]} or ${c.backup.lines[0]}?`),
+    "/week — pick your alert days",
+    "",
+    "⏰ **Automatic**",
+    `${WEEKLY_QUESTION.weekday} ${ampm(WEEKLY_QUESTION.time)} — pick your days`,
+    ...trips.map((trip) => `${ampm(trip.sendAt)} — ${trip.title.toLowerCase()}`),
+  ].join("\n");
+}
 
 /** The "which days?" question, with a menu to pick days. */
 function weekQuestion() {
@@ -73,6 +94,7 @@ client.once(Events.ClientReady, async () => {
       ],
     },
     { name: "week", description: "Pick which days you want alerts this week" },
+    { name: "help", description: "List the commands and when automatic messages come" },
   ]);
   console.log(`Commute Bot is online in #${channel.name}`);
 
@@ -111,6 +133,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     if (interaction.commandName === "week") {
       await interaction.reply(weekQuestion());
+      return;
+    }
+    if (interaction.commandName === "help") {
+      await interaction.reply(helpMessage());
       return;
     }
 
