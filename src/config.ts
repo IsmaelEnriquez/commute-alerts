@@ -48,15 +48,20 @@ export function parseConfig(data: unknown): Config {
   return result.data;
 }
 
-/** Loads trips.json and finds one trip by its id. */
-export function loadTrip(id: string | undefined, path = "trips.json"): Trip {
+/** Loads and checks trips.json. */
+export function loadConfig(path = "trips.json"): Config {
   let text: string;
   try {
     text = readFileSync(path, "utf8");
   } catch {
     throw new Error(`Can't find ${path}. Copy trips.example.json to ${path} and fill in your commute.`);
   }
-  const config = parseConfig(JSON.parse(text));
+  return parseConfig(JSON.parse(text));
+}
+
+/** Loads trips.json and finds one trip by its id. */
+export function loadTrip(id: string | undefined, path = "trips.json"): Trip {
+  const config = loadConfig(path);
   const trip = config.trips.find((candidate) => candidate.id === id);
   if (!trip) {
     const ids = config.trips.map((candidate) => candidate.id).join(", ");
