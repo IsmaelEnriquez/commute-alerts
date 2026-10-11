@@ -1,0 +1,27 @@
+{
+  "trips": [
+    {
+      "id": "evening",
+      "title": "Trip home",
+      "sendAt": "18:00",
+      "stops": [
+        { "name": "1/2/3 · 96 St", "stopId": "120S", "lines": ["1", "2", "3"] },
+        { "name": "A · 42 St–Port Authority", "stopId": "A27S", "lines": ["A"] }
+      ],
+      "alerts": {
+        "keepWords": ["Downtown"],
+        "skipWords": ["Uptown", "Bronx-bound"]
+      },
+      "choice": {
+        "at": "96 St",
+        "maxWaitMin": 8,
+        "usual": {
+          "first": { "name": "2/3 · 96 St", "stopId": "120S", "lines": ["2", "3"] },
+          "transferMin": 9,
+          "then": { "name": "A · 42 St–Port Authority", "stopId": "A27S", "lines": ["A"] }
+        },
+        "backup": { "name": "C · 96 St", "stopId": "A19S", "lines": ["C"] }
+      }
+    }
+  ]
+}
